@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smart Flow – SAP S/4HANA Warehouse</title>
+
+<!-- XLSX support: works locally in browser, but this library loads from CDN.
+     CSV import/export works even without internet. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',Arial,sans-serif;background:#0B0E17;color:#FFF4EC}
+h1,h2,h3{font-family:'Unbounded','IBM Plex Sans',Arial,sans-serif;font-weight:500}
+.app{min-height:100vh;display:grid;grid-template-columns:260px 1fr}
+.sidebar{background:#0F1326;border-right:1px solid #2B3260;padding:22px}
+.logo{border-bottom:1px solid #2B3260;padding-bottom:18px;margin-bottom:18px}
+.brandrow{display:flex;gap:12px;align-items:center}
+.mark{width:38px;height:38px;flex:none;background:#F37021;color:#1D2240;font:700 18px 'Unbounded',sans-serif;display:flex;align-items:center;justify-content:center;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.logo h1{font-size:15px;line-height:1.3}
+.logo p{margin-top:10px;font-size:12px;color:#98A0BC}
+.navbtn{width:100%;text-align:left;border:none;margin-bottom:8px;padding:13px 14px;cursor:pointer;background:#1D2240;color:#FFF4EC;font:600 14px 'IBM Plex Sans',sans-serif;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+.navbtn.active,.navbtn:hover{background:#F37021;color:#111111}
+.main{padding:22px;overflow:auto}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;border-bottom:1px solid #2B3260;padding-bottom:14px}
+.topbar h2{font-size:20px}
+.badge{background:#1D2240;border:1px solid #2B3260;color:#B4BAD3;padding:8px 12px;font-size:13px}
+.grid{display:grid;gap:14px}.grid-2{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(3,1fr)}.grid-4{grid-template-columns:repeat(4,1fr)}
+.card,.kpi{position:relative;isolation:isolate;background:#2B3260;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));padding:19px;margin-bottom:16px}
+.card::before,.kpi::before{content:"";position:absolute;inset:1px;background:#0F1326;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));z-index:-1}
+.kpi{margin:0;color:#B4BAD3;font-size:13px}.kpi b{display:block;font:700 26px 'Unbounded',sans-serif;margin-top:8px;color:#F37021}
+.card h3{font-size:15px;margin-bottom:12px}
+.filebox::before{background:#10142A}
+.small{color:#B4BAD3;font-size:13px;line-height:1.6}
+label{display:block;font-size:13px;color:#B4BAD3;font-weight:600;margin-bottom:6px}
+input,select,button,textarea{width:100%;padding:12px;border:1px solid #2B3260;font:15px 'IBM Plex Sans',sans-serif;background:#10142A;color:#FFF4EC}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid #F37021;outline-offset:1px}
+input[readonly]{background:#0B0E17;color:#FFF4EC}
+button{background:#F37021;color:#111111;border:none;font-weight:600;cursor:pointer;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+button:hover{background:#F4783B}
+button.secondary{background:#1D2240;color:#FFF4EC}button.secondary:hover{background:#2B3260}
+button.gray{background:#2B3260;color:#FFF4EC}
+button.green{background:#3DDC97;color:#111111}
+button.danger{background:#10142A;color:#F4783B;box-shadow:inset 0 0 0 1px #F37021}
+.status{display:none;margin-top:12px;padding:12px;font-weight:600}
+.status.ok{display:block;background:#0F2A24;color:#3DDC97;border:1px solid #3DDC97}.status.ok::before{content:"✓ "}
+.status.warn{display:block;background:#2A1D10;color:#F4A261;border:1px solid #F37021}.status.warn::before{content:"! "}
+.status.bad{display:block;background:#1D2240;color:#FFF4EC;border-left:4px solid #F37021}.status.bad::before{content:"✕ ";color:#F37021}
+#scanStatus{font-size:18px}
+.tablewrap{overflow:auto;border:1px solid #2B3260}
+table{width:100%;border-collapse:collapse;background:#0F1326}
+th,td{border-bottom:1px solid #2B3260;padding:11px;text-align:left;font-size:14px;white-space:nowrap}
+th{background:#1D2240;color:#FFF4EC;position:sticky;top:0;z-index:1;font-weight:600}
+.scanInput{font:500 26px 'Unbounded',monospace;letter-spacing:1px;padding:18px;border:2px solid #F37021;background:#10142A}
+details.card summary{cursor:pointer;font:500 15px 'Unbounded',sans-serif}
+details.card[open] summary{margin-bottom:14px}
+.hidden{display:none}.footerNote{font-size:12px;color:#98A0BC;margin-top:10px}
+@media(max-width:900px){.app{grid-template-columns:1fr}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.topbar{display:block}.sidebar{border-right:none}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="brandrow"><span class="mark">A</span><h1>AZOUMAG<br>Smart Flow</h1></div>
+      <p>SAP S/4HANA Warehouse Assistant</p>
+    </div>
+    <button class="navbtn active" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button class="navbtn" onclick="showPage('import',this)">Import Data</button>
+    <button class="navbtn" onclick="showPage('scan',this)">Scan HU</button>
+    <button class="navbtn" onclick="showPage('table',this)">Suivi Table</button>
+    <button class="navbtn" onclick="openSettings(this)">Settings</button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h2 id="pageTitle">Dashboard</h2>
+        <p class="small">Système local : import stock S/4HANA (EWM, WM/LX03, Fiori) → scan HU → auto-fill → export SAP/Excel</p>
+      </div>
+      <div class="badge" id="saveBadge">Local save: Ready</div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="page">
+      <div class="grid grid-4">
+        <div class="kpi">SAP HU Data <b id="kpiSap">0</b></div>
+        <div class="kpi">Atelier Mapping <b id="kpiAtelier">0</b></div>
+        <div class="kpi">Scanned Rows <b id="kpiScans">0</b></div>
+        <div class="kpi">Duplicates Blocked <b id="kpiDup">0</b></div>
+      </div>
+
+      <div class="card">
+        <h3>Workflow</h3>
+        <p class="small">
+          1) Importer le stock S/4HANA (export ALV). 2) Choisir remplacer ou fusionner. 3) Importer Article → Atelier. 4) Scanner ou saisir le HU (les HU mixtes ajoutent toutes leurs lignes). 5) Les champs se remplissent automatiquement. 6) Exporter XLSX/CSV ou copier les HU pour SAP.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Derniers scans</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Date</th><th>Material</th><th>HU</th><th>Atelier</th><th>Qty</th><th>Batch</th></tr></thead>
+            <tbody id="lastScansBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- IMPORT -->
+    <section id="import" class="page hidden">
+      <div class="grid grid-2">
+        <div class="card filebox">
+          <h3>1) Import stock SAP S/4HANA</h3>
+          <p class="small">
+            Export ALV S/4HANA (EWM /SCWM/MON, WM LX03, app Fiori stock) en .xlsx, .csv ou .txt. Détection auto de la ligne d’en-tête et des colonnes : Product/Material, Handling Unit, Quantity, Batch, Plant, Storage Location, Storage Bin, Stock Type. Les zéros de tête (HU 20 car., Material 40 car.) sont gérés.
+          </p><br>
+          <label>Mode d’import</label>
+          <select id="sapImportMode">
+            <option value="replace">Remplacer l’ancienne DATA</option>
+            <option value="merge">Fusionner avec DATA existante</option>
+          </select><br><br>
+          <input type="file" id="sapFile" accept=".xlsx,.xls,.csv,.txt,.tsv" onchange="previewSapHeaders()" />
+          <br><br>
+
+          <div id="sapManualMapping" class="hidden">
+            <h3>Mapping manuel SAP</h3>
+            <p class="small">Si l’auto mapping est incorrect, sélectionne les colonnes exactes du fichier importé.</p><br>
+            <div class="grid grid-2">
+              <div><label>Material</label><select id="mapSapMaterial"></select></div>
+              <div><label>HU / Unité de stock</label><select id="mapSapHU"></select></div>
+              <div><label>Quantité / Stock disponible</label><select id="mapSapQty"></select></div>
+              <div><label>Batch / Lot</label><select id="mapSapBatch"></select></div>
+              <div><label>Storage Location (magasin)</label><select id="mapSapLocation"></select></div>
+              <div><label>Type de stock</label><select id="mapSapStockType"></select></div>
+              <div><label>Storage Bin (emplacement)</label><select id="mapSapBin"></select></div>
+              <div><label>Plant / Division</label><select id="mapSapPlant"></select></div>
+            </div>
+            <p class="footerNote">Laisse “Auto” pour utiliser la détection automatique.</p>
+          </div>
+
+          <br>
+          <button onclick="importSapFile()">Importer stock S/4HANA</button>
+          <div id="sapStatus" class="status"></div>
+        </div>
+
+        <div class="card filebox">
+          <h3>2) Import Article → Atelier</h3>
+          <p class="small">
+            Fichier séparé car l’atelier peut changer. Colonnes attendues : Material / Atelier.
+          </p><br>
+          <label>Mode d’import</label>
+          <select id="atelierImportMode">
+            <option value="replace">Remplacer mapping atelier</option>
+            <option value="merge">Fusionner mapping atelier</option>
+          </select><br><br>
+          <input type="file" id="atelierFile" accept=".xlsx,.xls,.csv,.txt,.tsv" onchange="previewAtelierHeaders()" />
+          <br><br>
+
+          <div id="atelierManualMapping" class="hidden">
+            <h3>Mapping manuel Atelier</h3>
+            <p class="small">Sélectionne manuellement les colonnes si l’auto mapping est incorrect.</p><br>
+            <div class="grid grid-2">
+              <div><label>Material</label><select id="mapAtelierMaterial"></select></div>
+              <div><label>Atelier</label><select id="mapAtelierAtelier"></select></div>
+            </div>
+            <p class="footerNote">Laisse “Auto” pour utiliser la détection automatique.</p>
+          </div>
+
+          <br>
+          <button onclick="importAtelierFile()">Importer Article-Atelier</button>
+          <div id="atelierStatus" class="status"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Contrôle DATA</h3>
+        <div class="grid grid-4">
+          <button class="secondary" onclick="saveAll()">Sauvegarder localement</button>
+          <button class="gray" onclick="loadAll()">Recharger sauvegarde</button>
+          <button class="danger" onclick="clearAllData()">Vider toutes les données</button>
+          <button onclick="downloadBackup()">Exporter Backup JSON</button>
+        </div>
+        <p class="footerNote">
+          La sauvegarde locale se fait dans le navigateur via localStorage. Elle reste disponible sur le même ordinateur et même navigateur.
+        </p>
+      </div>
+    </section>
+
+    <!-- SCAN -->
+    <section id="scan" class="page hidden">
+      <div class="card">
+        <h3>Scan / Saisie HU</h3>
+        <label>Scanner HU ici</label>
+        <input id="huScan" class="scanInput" type="text" placeholder="SCAN HU..." autocomplete="off" autofocus />
+        <div id="scanStatus" class="status"></div>
+      </div>
+
+      <details class="card" id="scanCfg">
+        <summary>Réglages du pistolet</summary>
+        <div class="grid grid-4">
+          <div><label>Validation par Entrée</label><select id="scanMode"><option value="auto">Ajoute directement</option><option value="confirm">Affiche, puis 2e Entrée ajoute</option></select></div>
+          <div><label>Longueur minimale du HU</label><input id="minLen" type="number" min="1" value="1"></div>
+          <div><label>Retirer ce préfixe</label><input id="stripPrefix" placeholder="ex : ]C1"></div>
+          <div><label>Retirer ce suffixe</label><input id="stripSuffix" placeholder="ex : *"></div>
+          <div><label>Corriger clavier AZERTY (&amp;é"' → 1234)</label><select id="azertyFix"><option value="off">Non</option><option value="on">Oui</option></select></div>
+          <div><label>Bip sonore</label><select id="soundOn"><option value="on">Oui</option><option value="off">Non</option></select></div>
+          <div><label>Garder le curseur sur le champ</label><select id="keepFocus"><option value="on">Oui</option><option value="off">Non</option></select></div>
+        </div>
+        <p class="footerNote">Pistolet Zebra USB en mode clavier : configurez la touche Entrée comme suffixe. Si les chiffres arrivent sous la forme &amp; é " ' (, activez la correction AZERTY. Les réglages sont sauvegardés.</p>
+      </details>
+
+      <div class="card">
+        <h3>Auto-filled Fields</h3>
+        <div class="grid grid-4">
+          <div>
+            <label>Material</label>
+            <input id="materialOut" readonly>
+          </div>
+          <div>
+            <label>Unité de stock / HU</label>
+            <input id="huOut" readonly>
+          </div>
+          <div>
+            <label>Atelier</label>
+            <input id="atelierOut" readonly>
+          </div>
+          <div>
+            <label>Quantity</label>
+            <input id="qtyOut" readonly>
+          </div>
+        </div>
+        <br>
+        <div class="grid grid-4">
+          <div>
+            <label>Batch</label>
+            <input id="batchOut" readonly>
+          </div>
+          <div>
+            <label>Storage Location</label>
+            <input id="locationOut" readonly>
+          </div>
+          <div>
+            <label>Stock Type</label>
+            <input id="stockTypeOut" readonly>
+          </div>
+          <div>
+            <label>Status</label>
+            <input id="statusOut" readonly>
+          </div>
+        </div>
+        <br>
+        <div class="grid grid-3"><div><label>Plant</label><input id="plantOut" readonly></div><div><label>Storage Bin</label><input id="binOut" readonly></div><div><label>Lignes pour ce HU</label><input id="linesOut" readonly></div></div>
+        <br>
+        <div class="grid grid-3">
+          <button class="green" onclick="addCurrentScan()">Ajouter au suivi</button>
+          <button onclick="clearScan()">Nouvelle saisie</button>
+          <button class="secondary" onclick="focusScanner()">Focus Scanner</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABLE -->
+    <section id="table" class="page hidden">
+      <div class="card">
+        <h3>Suivi Table</h3>
+        <div class="grid grid-4">
+          <button onclick="exportScansXLSX()">Exporter XLSX</button>
+          <button class="secondary" onclick="exportScansCSV()">Exporter CSV</button>
+          <button class="green" onclick="copyHUForSAP()">Copier HU pour SAP</button>
+          <button class="danger" onclick="clearScans()">Vider suivi</button>
+        </div>
+        <div id="copyStatus" class="status"></div>
+      </div>
+
+      <div class="card">
+        <div class="tablewrap">
+          <table id="scanTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Plant</th>
+                <th>Material</th>
+                <th>Handling Unit</th>
+                <th>Atelier</th>
+                <th>Quantity</th>
+                <th>Batch</th>
+                <th>Storage Location</th>
+                <th>Storage Bin</th>
+                <th>Stock Type</th>
+              </tr>
+            </thead>
+            <tbody id="scanBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="settings" class="page hidden">
+      <div class="card">
+        <h3>Admin Settings - Column Detection</h3><p class="small">Accès protégé par mot de passe admin.</p><br>
+        <p class="small">Si l’export S/4HANA a des noms de colonnes différents, ajoute ici les synonymes.</p><br>
+        <div class="grid grid-2" id="synGrid"></div>
+        <br>
+        <button onclick="saveSettings()">Sauvegarder Settings</button>
+        <div id="settingsStatus" class="status"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const KEY='AZOUMAG_SMART_FLOW_V2',OLDKEY='AZOUMAG_SMART_FLOW_V1';
+let sap={},atelier={},scans=[],dup=0,cur=null;
+const $=id=>document.getElementById(id);
+const n=v=>String(v??'').trim();
+const low=v=>n(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+// Clé de comparaison : majuscules, sans espaces, zéros de tête retirés (S/4HANA : HU 20 car., Material 40 car.)
+const key=v=>{let s=n(v).toUpperCase().replace(/\s+/g,'');if(/^\d+$/.test(s))s=s.replace(/^0+(?=\d)/,'');return s};
+const SYN={
+ materialNames:['Material / Product','material,product,produit,article,matnr,material number,numero article,reference'],
+ huNames:['Handling Unit / HU','handling unit,huident,exidv,hu,unite de manutention,unite de stock,storage unit,lenum,su'],
+ qtyNames:['Quantité','available quantity,quantite disponible,stock disponible,available stock,qty,quantity,quantite,total stock,stock total'],
+ batchNames:['Batch / Lot','batch,lot,charg,charge'],
+ plantNames:['Plant / Division','plant,werks,division,usine,site'],
+ locationNames:['Storage Location (magasin)','storage location,lgort,magasin,sloc'],
+ binNames:['Storage Bin (emplacement)','storage bin,lgpla,emplacement,bin,casier'],
+ stockTypeNames:['Stock Type / Catégorie','stock type,type de stock,type stock,stock category,categorie de stock,bestq,cat'],
+ atelierNames:['Atelier','atelier,workshop,ligne,production']};
+const SAPMAP={mapSapMaterial:'materialNames',mapSapHU:'huNames',mapSapQty:'qtyNames',mapSapBatch:'batchNames',mapSapLocation:'locationNames',mapSapStockType:'stockTypeNames',mapSapBin:'binNames',mapSapPlant:'plantNames'};
+const ATMAP={mapAtelierMaterial:'materialNames',mapAtelierAtelier:'atelierNames'};
+const SCANCFG=['scanMode','minLen','stripPrefix','stripSuffix','azertyFix','soundOn','keepFocus'];
+const OUTS=['materialOut','huOut','atelierOut','qtyOut','batchOut','locationOut','stockTypeOut','statusOut','plantOut','binOut','linesOut'];
+$('synGrid').innerHTML=Object.entries(SYN).map(([id,[l,d]])=>`<div><label>${l} — noms de colonnes</label><input id="${id}" value="${d}"></div>`).join('');
+const splitNames=id=>$(id).value.split(',').map(low).filter(Boolean);
+function showStatus(id,t,m){const e=$(id);e.className='status '+t;e.textContent=m}
+function escapeHtml(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function openSettings(btn){const p=prompt('Admin password');if(p==='0615')showPage('settings',btn);else if(p!==null)alert('Mot de passe incorrect.')}
+function showPage(id,btn){document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));$(id).classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');$('pageTitle').textContent=btn?btn.textContent:id;if(id==='scan')setTimeout(focusScanner,100);renderAll()}
+function focusScanner(){const i=$('huScan');i.focus();i.select()}
+
+function findCol(h,names){const H=h.map(low);
+ for(const nm of names){const i=H.indexOf(nm);if(i>-1)return i}
+ for(const nm of names){if(nm.length<4)continue;const i=H.findIndex(x=>x.includes(nm));if(i>-1)return i}
+ return -1}
+// CSV/TXT : détecte le séparateur (tab, ;, ,, |), gère les guillemets, ignore les lignes de tirets des exports SAP
+function csvRows(t){t=t.replace(/^\uFEFF/,'');const f=t.split(/\r?\n/).find(l=>l.trim())||'';
+ const d=['\t',';',',','|'].map(x=>[x,f.split(x).length]).sort((a,b)=>b[1]-a[1])[0][0];
+ const out=[];let r=[],c='',q=false;
+ const end=()=>{r.push(c.trim());c='';if(r.some(x=>x&&!/^-+$/.test(x)))out.push(r);r=[]};
+ for(let i=0;i<t.length;i++){const ch=t[i];
+  if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+  else if(ch==='"')q=true;
+  else if(ch===d){r.push(c.trim());c=''}
+  else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;end()}
+  else c+=ch}
+ end();return out}
+// Lit le fichier, repère la vraie ligne d'en-tête (les exports ALV/S/4HANA ont souvent des lignes de titre au-dessus)
+async function readTable(f){
+ const ext=f.name.split('.').pop().toLowerCase();let rows;
+ if(['csv','txt','tsv'].includes(ext))rows=csvRows(await f.text());
+ else{if(typeof XLSX==='undefined'){alert('Bibliothèque XLSX non chargée (internet requis). Utilise CSV ou TXT.');return{headers:[],data:[]}}
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+  rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false})}
+ rows=rows.filter(r=>r.some(c=>n(c)));
+ const all=Object.keys(SYN).flatMap(splitNames);let best=0,bs=-1;
+ rows.slice(0,15).forEach((r,i)=>{const s=r.filter(c=>{const x=low(c);return x&&all.some(a=>a===x||(a.length>3&&x.includes(a)))}).length;if(s>bs){bs=s;best=i}});
+ return{headers:(rows[best]||[]).map(n),data:rows.slice(best+1)}}
+async function preview(fileId,map,panel){
+ const f=$(fileId).files[0];if(!f)return;const{headers}=await readTable(f);if(!headers.length)return;
+ for(const[sid,syn]of Object.entries(map)){const s=$(sid);
+  s.innerHTML='<option value="">Auto</option>'+headers.map((h,i)=>`<option value="${i}">${i+1} - ${escapeHtml(h)}</option>`).join('');
+  const i=findCol(headers,splitNames(syn));if(i>-1)s.value=String(i)}
+ $(panel).classList.remove('hidden')}
+const previewSapHeaders=()=>preview('sapFile',SAPMAP,'sapManualMapping');
+const previewAtelierHeaders=()=>preview('atelierFile',ATMAP,'atelierManualMapping');
+const pick=(sid,h,syn)=>{const v=$(sid).value;return v!==''?+v:findCol(h,splitNames(syn))};
+// Quantités SAP : "1.234,500", "1,234.500", "12-" (signe à droite), espaces insécables
+function qtyNum(v){let s=n(v).replace(/[\s\u00a0]/g,'');if(!s)return'';let neg=false;
+ if(s.endsWith('-')){neg=true;s=s.slice(0,-1)}
+ const c=s.lastIndexOf(','),d=s.lastIndexOf('.');
+ if(c>-1&&d>-1)s=c>d?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
+ else if(c>-1)s=(s.split(',').length>2||/,\d{3}$/.test(s))?s.replace(/,/g,''):s.replace(',','.');
+ const x=Number(s);return isNaN(x)?n(v):String((neg?-x:x))}
+
+async function importSapFile(){
+ const f=$('sapFile').files[0],mode=$('sapImportMode').value;
+ if(!f)return showStatus('sapStatus','bad','Sélectionne un fichier stock S/4HANA.');
+ const{headers,data}=await readTable(f);
+ if(!data.length)return showStatus('sapStatus','bad','Fichier vide ou invalide.');
+ const ix={};for(const[id,syn]of Object.entries(SAPMAP))ix[id]=pick(id,headers,syn);
+ if(ix.mapSapHU<0||ix.mapSapMaterial<0)return showStatus('sapStatus','bad','Colonnes Material ou Handling Unit introuvables. Vérifie le mapping ou Settings.');
+ if(mode==='replace')sap={};
+ const seen=new Set();let added=0,upd=0,lines=0;
+ const g=(r,id)=>ix[id]>-1?n(r[ix[id]]):'';
+ data.forEach(r=>{const hu=g(r,'mapSapHU');if(!hu)return;const k=key(hu);
+  if(!seen.has(k)){if(sap[k])upd++;else added++;sap[k]=[];seen.add(k)}
+  sap[k].push({hu,material:g(r,'mapSapMaterial'),qty:qtyNum(g(r,'mapSapQty')),batch:g(r,'mapSapBatch'),location:g(r,'mapSapLocation'),stockType:g(r,'mapSapStockType'),bin:g(r,'mapSapBin'),plant:g(r,'mapSapPlant')});lines++});
+ saveAll();renderAll();
+ const miss=['mapSapQty','mapSapBatch','mapSapBin'].filter(i=>ix[i]<0).map(i=>i.replace('mapSap',''));
+ showStatus('sapStatus',miss.length?'warn':'ok',`Import terminé. HU ajoutés: ${added}, mis à jour: ${upd}, lignes stock: ${lines}. Total HU: ${Object.keys(sap).length}. Colonne quantité: ${ix.mapSapQty>-1?headers[ix.mapSapQty]:'NON DÉTECTÉE'}.${miss.length?' Non détectées: '+miss.join(', ')+'.':''}`)}
+async function importAtelierFile(){
+ const f=$('atelierFile').files[0],mode=$('atelierImportMode').value;
+ if(!f)return showStatus('atelierStatus','bad','Sélectionne un fichier Article → Atelier.');
+ const{headers,data}=await readTable(f);
+ if(!data.length)return showStatus('atelierStatus','bad','Fichier vide ou invalide.');
+ const m=pick('mapAtelierMaterial',headers,'materialNames'),a=pick('mapAtelierAtelier',headers,'atelierNames');
+ if(m<0||a<0)return showStatus('atelierStatus','bad','Colonnes Material ou Atelier introuvables. Vérifie Settings.');
+ if(mode==='replace')atelier={};
+ let c=0;data.forEach(r=>{const mat=n(r[m]);if(mat){atelier[key(mat)]=n(r[a]);c++}});
+ saveAll();renderAll();showStatus('atelierStatus','ok',`Mapping atelier importé: ${c} lignes. Total: ${Object.keys(atelier).length}.`)}
+
+function lookupHU(){
+ const raw=scanVal();if(!raw){cur=null;clearOut(false);return}
+ const L=sap[key(raw)];
+ if(!L){cur=null;clearOut(false);$('huOut').value=raw;$('statusOut').value='Introuvable';return showStatus('scanStatus','bad','HU introuvable dans la DATA S/4HANA.')}
+ cur=L.map(l=>({...l,atelier:atelier[key(l.material)]||''}));const c=cur[0],miss=cur.some(x=>!x.atelier);
+ $('materialOut').value=c.material+(cur.length>1?` (+${cur.length-1})`:'');
+ $('huOut').value=c.hu;$('atelierOut').value=c.atelier;$('qtyOut').value=c.qty;$('batchOut').value=c.batch;
+ $('locationOut').value=c.location;$('stockTypeOut').value=c.stockType;$('plantOut').value=c.plant;$('binOut').value=c.bin;
+ $('linesOut').value=cur.length;$('statusOut').value=miss?'Atelier manquant':(cur.length>1?'HU mixte':'OK');
+ showStatus('scanStatus',miss?'warn':'ok',(cur.length>1?`HU mixte : ${cur.length} lignes seront ajoutées. `:'HU trouvé. ')+(miss?'Atelier introuvable pour au moins un article.':'Champs remplis.'))}
+const sid=s=>s.id||key(s.hu)+'|'+key(s.material)+'|'+key(s.batch);
+function addCurrentScan(){
+ if(!cur){showStatus('scanStatus','bad','Aucun HU valide à ajouter.');return false}
+ const have=new Set(scans.map(sid));let add=0;
+ cur.slice().reverse().forEach(l=>{const id=key(l.hu)+'|'+key(l.material)+'|'+key(l.batch);if(have.has(id))return;have.add(id);
+  scans.unshift({id,date:new Date().toLocaleString(),plant:l.plant,material:l.material,hu:l.hu,atelier:l.atelier,qty:l.qty,batch:l.batch,location:l.location,bin:l.bin,stockType:l.stockType});add++});
+ if(!add){dup++;saveAll();renderAll();showStatus('scanStatus','bad','Double scan bloqué : ce HU existe déjà dans le suivi.');$('huScan').select();return false}
+ saveAll();renderAll();clearScan();showStatus('scanStatus','ok',`HU ajouté au suivi (${add} ligne${add>1?'s':''}).`);return true}
+function clearOut(cs=true){OUTS.forEach(i=>$(i).value='');if(cs){$('scanStatus').className='status';$('scanStatus').textContent=''}}
+function clearScan(){$('huScan').value='';cur=null;clearOut(true);focusScanner()}
+
+function renderAll(){
+ $('kpiSap').textContent=Object.keys(sap).length;$('kpiAtelier').textContent=Object.keys(atelier).length;$('kpiScans').textContent=scans.length;$('kpiDup').textContent=dup;
+ $('scanBody').innerHTML=scans.map(s=>`<tr>${[s.date,s.plant,s.material,s.hu,s.atelier,s.qty,s.batch,s.location,s.bin,s.stockType].map(v=>`<td>${escapeHtml(v)}</td>`).join('')}</tr>`).join('');
+ $('lastScansBody').innerHTML=scans.slice(0,8).map(s=>`<tr>${[s.date,s.material,s.hu,s.atelier,s.qty,s.batch].map(v=>`<td>${escapeHtml(v)}</td>`).join('')}</tr>`).join('')}
+
+function saveAll(){queueDir();
+ const settings={};[...Object.keys(SYN),...SCANCFG].forEach(k=>settings[k]=$(k).value);
+ try{localStorage.setItem(KEY,JSON.stringify({sap,atelier,scans,dup,settings}));$('saveBadge').textContent='Local save: Saved'}
+ catch(e){$('saveBadge').textContent='Local save: PLEIN';alert('Stockage local plein. Exporte un Backup JSON ou réduis le fichier importé (garde uniquement les colonnes utiles).')}}
+function loadAll(){
+ let p=null;try{p=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+ if(!p){ // migration depuis la V1 (LX03) : données reprises, synonymes S/4HANA conservés par défaut
+  try{const o=JSON.parse(localStorage.getItem(OLDKEY)||'null');
+   if(o){p={sap:{},atelier:{},scans:o.scans||[],dup:o.duplicatesBlocked||0};
+    Object.values(o.sapData||{}).forEach(r=>{p.sap[key(r.hu)]=[{hu:r.hu,material:r.material,qty:qtyNum(r.qty),batch:r.batch,location:r.location,stockType:r.stockType,bin:'',plant:''}]});
+    Object.entries(o.atelierData||{}).forEach(([m,a])=>p.atelier[key(m)]=a)}}catch(e){}}
+ if(!p){$('saveBadge').textContent='Local save: Empty';return}
+ sap=p.sap||{};atelier=p.atelier||{};scans=p.scans||[];dup=p.dup||0;
+ Object.entries(p.settings||{}).forEach(([k,v])=>{if($(k))$(k).value=v});
+ renderAll();$('saveBadge').textContent='Local save: Loaded'}
+function saveSettings(){saveAll();showStatus('settingsStatus','ok','Settings sauvegardés.')}
+function clearAllData(){if(!confirm('Vider toutes les données locales ?'))return;sap={};atelier={};scans=[];dup=0;localStorage.removeItem(KEY);renderAll();$('saveBadge').textContent='Local save: Cleared'}
+function clearScans(){if(!confirm('Vider le suivi des scans ?'))return;scans=[];saveAll();renderAll()}
+function downloadBlob(b,name){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+function downloadBackup(){downloadBlob(new Blob([JSON.stringify({sap,atelier,scans,dup,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),'smart_flow_backup.json')}
+const rowsForExport=()=>scans.map(s=>({Date:s.date,Plant:s.plant,Material:s.material,'Handling Unit':s.hu,Atelier:s.atelier,Quantity:s.qty,Batch:s.batch,'Storage Location':s.location,'Storage Bin':s.bin,'Stock Type':s.stockType}));
+function exportScansXLSX(){
+ if(typeof XLSX==='undefined'){exportScansCSV();return alert('XLSX indisponible. Export CSV créé à la place.')}
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rowsForExport()),'Suivi');XLSX.writeFile(wb,'smart_flow_suivi.xlsx')}
+const csvSafe=v=>{const s=String(v??'');return/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function exportScansCSV(){
+ const r=rowsForExport(),h=Object.keys(r[0]||{Date:'',Plant:'',Material:'','Handling Unit':'',Atelier:'',Quantity:'',Batch:'','Storage Location':'','Storage Bin':'','Stock Type':''});
+ downloadBlob(new Blob(['\uFEFF'+[h.join(','),...r.map(x=>h.map(k=>csvSafe(x[k])).join(','))].join('\n')],{type:'text/csv;charset=utf-8;'}),'smart_flow_suivi.csv')}
+async function copyHUForSAP(){
+ const t=[...new Set(scans.map(s=>s.hu))].join('\n');
+ try{await navigator.clipboard.writeText(t);showStatus('copyStatus','ok','HU copiés (sans doublons). Colle-les dans SAP (sélection multiple).')}
+ catch(e){showStatus('copyStatus','bad','Copie refusée par le navigateur. Utilise l’export CSV.')}}
+
+// Pistolet USB : nettoyage de la saisie (AZERTY, préfixe/suffixe) puis validation par Entrée
+const AZ={'&':'1','é':'2','"':'3',"'":'4','(':'5','-':'6','è':'7','_':'8','ç':'9','à':'0'};
+function scanVal(){let v=n($('huScan').value);
+ if($('azertyFix').value==='on')v=v.replace(/[&é"'(\-è_çà]/g,c=>AZ[c]);
+ const p=$('stripPrefix').value,x=$('stripSuffix').value;
+ if(p&&v.startsWith(p))v=v.slice(p.length);if(x&&v.endsWith(x))v=v.slice(0,-x.length);
+ return v.trim()}
+let AC,tm,armed=false;
+function beep(ok){if($('soundOn').value!=='on')return;
+ try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=ok?880:220;g.gain.value=.15;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+(ok?.12:.35))}catch(e){}}
+function onEnter(){clearTimeout(tm);
+ if(scanVal().length<(+$('minLen').value||1)){beep(false);return focusScanner()}
+ lookupHU();
+ if(!cur){beep(false);return focusScanner()}
+ if($('scanMode').value==='confirm'&&!armed){armed=true;beep(true);return}
+ beep(addCurrentScan());armed=false}
+$('huScan').addEventListener('input',()=>{armed=false;clearTimeout(tm);tm=setTimeout(lookupHU,150)});
+$('huScan').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key==='Tab'&&$('huScan').value){e.preventDefault();onEnter()}});
+SCANCFG.forEach(k=>$(k).addEventListener('change',saveAll));
+document.addEventListener('click',e=>{if($('keepFocus').value==='on'&&!$('scan').classList.contains('hidden')&&!e.target.closest('input,select,textarea,button,summary'))focusScanner()});
+// Sauvegarde automatique dans un dossier externe (Chrome/Edge, File System Access)
+let dirH=null,dt,asked=false,lastBk='';
+const idb=(m,k,v)=>new Promise((res,rej)=>{const r=indexedDB.open('smartflow',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onerror=()=>rej(r.error);
+ r.onsuccess=()=>{const st=r.result.transaction('h',m==='get'?'readonly':'readwrite').objectStore('h'),q=m==='get'?st.get(k):st.put(v,k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}});
+const updDirUI=t=>{$('dirState').textContent=dirH?'Dossier externe : '+dirH.name+(t?' · '+t:''):'Dossier externe : non défini'};
+const queueDir=()=>{if(dirH){clearTimeout(dt);dt=setTimeout(writeDir,400)}};
+async function okPerm(ask){if(!dirH)return false;const o={mode:'readwrite'};if(await dirH.queryPermission(o)==='granted')return true;return !!ask&&await dirH.requestPermission(o)==='granted'}
+async function putFile(name,txt){const w=await(await dirH.getFileHandle(name,{create:true})).createWritable();await w.write(txt);await w.close()}
+async function writeDir(){if(!await okPerm(false))return;
+ try{const t=JSON.stringify({sap,atelier,scans,dup,savedAt:new Date().toISOString()});await putFile('smart_flow_data.json',t);
+  const d=new Date().toISOString().slice(0,10);if(lastBk!==d){await putFile('smart_flow_backup_'+d+'.json',t);lastBk=d}
+  updDirUI('sauvegardé '+new Date().toLocaleTimeString())}catch(e){updDirUI('erreur d’écriture')}}
+async function readDir(){if(!await okPerm(true))return;
+ try{const f=await(await dirH.getFileHandle('smart_flow_data.json')).getFile(),p=JSON.parse(await f.text());
+  sap=p.sap||{};atelier=p.atelier||{};scans=p.scans||[];dup=p.dup||0;saveAll();renderAll();updDirUI('données chargées')}
+ catch(e){alert('Aucun fichier smart_flow_data.json lisible dans ce dossier.')}}
+async function pickDir(){
+ if(!window.showDirectoryPicker)return alert('Ce navigateur ne gère pas l’accès aux dossiers. Utilisez Chrome ou Edge sur PC.');
+ try{dirH=await showDirectoryPicker({mode:'readwrite',id:'smartflow'});await idb('put','dir',dirH);updDirUI();
+  let has=true;try{await dirH.getFileHandle('smart_flow_data.json')}catch(e){has=false}
+  if(has&&confirm('Ce dossier contient déjà des données Smart Flow. Les charger ? (Annuler = les écraser avec les données actuelles)'))await readDir();else await writeDir()}
+ catch(e){if(e.name!=='AbortError')alert('Accès au dossier impossible : '+e.message+'\nOuvrez le fichier HTML directement depuis votre PC avec Chrome ou Edge.')}}
+document.querySelector('.topbar').insertAdjacentHTML('afterend','<div class="card" style="padding:12px 16px;margin-bottom:12px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span id="dirState" class="small" style="flex:1;min-width:200px">Dossier externe : non défini</span><button style="width:auto" onclick="pickDir()">Choisir le dossier</button><button class="secondary" style="width:auto" onclick="readDir()">Charger depuis le dossier</button></div></div>');
+document.addEventListener('click',()=>{if(dirH&&!asked){asked=true;okPerm(true).then(ok=>ok&&writeDir())}});
+window.addEventListener('load',()=>{idb('get','dir').then(h=>{if(h){dirH=h;updDirUI('cliquez pour réautoriser')}}).catch(()=>{})});
+window.addEventListener('load',()=>{loadAll();renderAll()});
+</script>
+</body>
+</html>
